@@ -27,14 +27,20 @@ describe("runtime connection config", () => {
     const source = new RuntimeConnectionConfigSource(path, {});
 
     expect(source.read()).toEqual({
+      provider: "deepseek",
       apiKey: "sk-old",
       baseUrl: "https://old.example.com",
+      model: undefined,
+      models: [],
     });
 
     writeConfig({ apiKey: "sk-new", baseUrl: "https://new.example.com" }, path);
     expect(source.read()).toEqual({
+      provider: "deepseek",
       apiKey: "sk-new",
       baseUrl: "https://new.example.com",
+      model: undefined,
+      models: [],
     });
   });
 
@@ -59,8 +65,11 @@ describe("runtime connection config", () => {
 
     writeConfig({ apiKey: "sk-new", baseUrl: "https://new.example.com" }, path);
     expect(source.read()).toEqual({
+      provider: "deepseek",
       apiKey: "sk-env",
       baseUrl: "https://env.example.com",
+      model: undefined,
+      models: [],
     });
   });
 
@@ -76,8 +85,36 @@ describe("runtime connection config", () => {
     expect(source.read()?.apiKey).toBe("sk-new");
   });
 
+  it("follows active named-provider changes", () => {
+    const path = configPath();
+    const providers = {
+      openrouter: {
+        apiKey: "sk-openrouter",
+        baseUrl: "https://openrouter.example/v1",
+        models: ["openai/gpt-4.1"],
+      },
+    };
+    writeConfig({ apiKey: "sk-deepseek", providers }, path);
+    const source = new RuntimeConnectionConfigSource(path, {});
+
+    writeConfig({ provider: "openrouter", apiKey: "sk-deepseek", providers }, path);
+
+    expect(source.read()).toEqual({
+      provider: "openrouter",
+      apiKey: "sk-openrouter",
+      baseUrl: "https://openrouter.example/v1",
+      model: "openai/gpt-4.1",
+      models: ["openai/gpt-4.1"],
+    });
+  });
+
   it("compares connection snapshots", () => {
-    expect(sameRuntimeConnectionConfig({ apiKey: "a" }, { apiKey: "a" })).toBe(true);
-    expect(sameRuntimeConnectionConfig({ apiKey: "a" }, { apiKey: "b" })).toBe(false);
+    const base = { provider: "deepseek", baseUrl: "https://api.deepseek.com", models: [] };
+    expect(sameRuntimeConnectionConfig({ ...base, apiKey: "a" }, { ...base, apiKey: "a" })).toBe(
+      true,
+    );
+    expect(sameRuntimeConnectionConfig({ ...base, apiKey: "a" }, { ...base, apiKey: "b" })).toBe(
+      false,
+    );
   });
 });

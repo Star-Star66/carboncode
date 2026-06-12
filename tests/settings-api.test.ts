@@ -278,4 +278,63 @@ describe("settings API — combined POST persistence (#274)", () => {
     expect(cfg.preset).toBe("flash");
     expect(cfg.reasoningEffort).toBe("high");
   });
+
+  it("lists configured providers without exposing their API keys", async () => {
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        apiKey: "sk-deepseek-1234567890",
+        providers: {
+          openrouter: {
+            apiKey: "sk-openrouter-1234567890",
+            baseUrl: "https://openrouter.example/v1",
+            model: "openai/gpt-4.1",
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const res = await handleSettings("GET", [], "", makeCtx(configPath));
+    const providers = (res.body as { providers: Array<Record<string, unknown>> }).providers;
+    expect(providers).toEqual([
+      expect.objectContaining({ name: "deepseek", apiKeySet: true }),
+      expect.objectContaining({
+        name: "openrouter",
+        apiKeySet: true,
+        model: "openai/gpt-4.1",
+      }),
+    ]);
+    expect(JSON.stringify(providers)).not.toContain("sk-openrouter-1234567890");
+  });
+
+  it("persists and applies a configured provider switch", async () => {
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        apiKey: "sk-deepseek-1234567890",
+        providers: {
+          openrouter: {
+            apiKey: "sk-openrouter-1234567890",
+            baseUrl: "https://openrouter.example/v1",
+            model: "openai/gpt-4.1",
+          },
+        },
+      }),
+      "utf8",
+    );
+    const switched: string[] = [];
+
+    const res = await handleSettings("POST", [], JSON.stringify({ provider: "openrouter" }), {
+      ...makeCtx(configPath),
+      switchProviderLive: (name) => {
+        switched.push(name);
+        return { ok: true, info: name };
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(readCfg(configPath).provider).toBe("openrouter");
+    expect(switched).toEqual(["openrouter"]);
+  });
 });

@@ -36,6 +36,29 @@ const model: SlashHandler = (args, loop, ctx) => {
   return { info: t("handlers.model.modelSet", { id }) };
 };
 
+const provider: SlashHandler = (args, _loop, ctx) => {
+  const name = args[0]?.trim();
+  if (!name) {
+    const providers = ctx.listProviders?.() ?? [];
+    if (providers.length === 0) {
+      return { info: "provider: deepseek (legacy configuration)" };
+    }
+    return {
+      info: providers
+        .map(
+          (item) =>
+            `${item.active ? "*" : " "} ${item.name}${item.model ? ` / ${item.model}` : ""}`,
+        )
+        .join("\n"),
+    };
+  }
+  return (
+    ctx.switchProvider?.(name) ?? {
+      info: "provider switching is unavailable in this session",
+    }
+  );
+};
+
 const preset: SlashHandler = (args, loop, ctx) => {
   const name = (args[0] ?? "").toLowerCase();
   const apply = (
@@ -140,6 +163,7 @@ const budget: SlashHandler = (args, loop) => {
 
 export const handlers: Record<string, SlashHandler> = {
   model,
+  provider,
   preset,
   pro,
   budget,

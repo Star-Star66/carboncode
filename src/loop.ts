@@ -1256,6 +1256,7 @@ export class CacheFirstLoop {
   private summaryContext(): ForceSummaryContext {
     return {
       client: this.client,
+      model: this.modelForCurrentCall(),
       signal: this._turnAbort.signal,
       buildMessages: () => this.buildMessages(null),
       appendAndPersist: (m) => this.appendAndPersist(m),

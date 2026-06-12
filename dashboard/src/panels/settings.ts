@@ -20,6 +20,14 @@ import {
 interface SettingsData {
   apiKey?: string | null;
   baseUrl?: string;
+  provider?: string;
+  providers?: Array<{
+    name: string;
+    model?: string | null;
+    models: string[];
+    apiKeySet: boolean;
+    baseUrl?: string | null;
+  }>;
   preset?: string;
   reasoningEffort?: string;
   search?: boolean;
@@ -549,6 +557,24 @@ export function SettingsPanel() {
 
       ${sectionH3(t("settings.sectionApi"))}
       <div class="card">
+        ${fieldRow(
+          t("settings.provider"),
+          html`
+            <select
+              value=${v.provider ?? "deepseek"}
+              onChange=${(e: Event) => save({ provider: (e.target as HTMLSelectElement).value })}
+              disabled=${saving}
+            >
+              ${(v.providers ?? []).map(
+                (provider) =>
+                  html`<option value=${provider.name}>
+                    ${provider.name}${provider.model ? ` / ${provider.model}` : ""}
+                  </option>`,
+              )}
+            </select>
+          `,
+          t("settings.providerNote"),
+        )}
         ${fieldRow(
           t("settings.apiKey"),
           html`<code class="mono" style="color:var(--fg-2);font-size:11.5px">${v.apiKey ?? t("settings.notSet")}</code>`,

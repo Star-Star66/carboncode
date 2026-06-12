@@ -105,6 +105,8 @@ export const zhCN = {
     saved: "已保存：{fields}",
     sectionApi: "DeepSeek API",
     apiKey: "API 密钥",
+    provider: "模型供应商",
+    providerNote: "命名供应商来自 ~/.carboncode/config.json，切换后立即生效。",
     notSet: "（未设置）",
     replace: "替换",
     pasteKey: "粘贴新的 sk-… 令牌",

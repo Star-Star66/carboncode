@@ -265,7 +265,11 @@ export const zhCN: TranslationSchema = {
       description: "模型组合 — 自动在 flash → pro 之间切换，或锁定 flash/pro",
       argsHint: "<auto|flash|pro>",
     },
-    model: { description: "切换 DeepSeek 模型 ID", argsHint: "<id>" },
+    model: { description: "切换当前供应商的模型 ID", argsHint: "<id>" },
+    provider: {
+      description: "列出或切换已配置的模型供应商，无需重启",
+      argsHint: "[name]",
+    },
     models: { description: "列出从 DeepSeek /models 获取的可用模型" },
     theme: {
       description: "显示或持久化终端主题偏好。无参数时打开选择器。",

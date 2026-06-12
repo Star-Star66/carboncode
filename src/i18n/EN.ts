@@ -270,7 +270,11 @@ export const EN: TranslationSchema = {
       description: "model bundle — auto escalates flash → pro, flash/pro lock",
       argsHint: "<auto|flash|pro>",
     },
-    model: { description: "switch DeepSeek model id", argsHint: "<id>" },
+    model: { description: "switch model id for the active provider", argsHint: "<id>" },
+    provider: {
+      description: "list or switch configured model providers without restarting",
+      argsHint: "[name]",
+    },
     models: { description: "list available models fetched from DeepSeek /models" },
     theme: {
       description: "show or persist the terminal theme preference. Bare opens picker.",

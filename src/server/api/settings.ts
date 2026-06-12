@@ -11,12 +11,19 @@ import {
 } from "../../config.js";
 import { getLanguage, getSupportedLanguages, setLanguage } from "../../i18n/index.js";
 import type { LanguageCode } from "../../i18n/types.js";
+import {
+  DEFAULT_PROVIDER,
+  activeProviderName,
+  listModelProviders,
+  resolveModelProvider,
+} from "../../providers.js";
 import type { DashboardContext } from "../context.js";
 import type { ApiResult } from "../router.js";
 
 interface SettingsBody {
   apiKey?: unknown;
   baseUrl?: unknown;
+  provider?: unknown;
   lang?: unknown;
   preset?: unknown;
   reasoningEffort?: unknown;
@@ -56,12 +63,25 @@ export async function handleSettings(
       writeConfig(cfg, ctx.configPath);
     }
     const live = ctx.loop;
+    const activeProvider = activeProviderName(cfg);
+    const activeProviderConfig = resolveModelProvider(activeProvider, cfg);
     return {
       status: 200,
       body: {
-        apiKey: cfg.apiKey ? redactKey(cfg.apiKey) : null,
-        apiKeySet: Boolean(cfg.apiKey),
-        baseUrl: cfg.baseUrl ?? null,
+        apiKey: activeProviderConfig?.apiKey ? redactKey(activeProviderConfig.apiKey) : null,
+        apiKeySet: Boolean(activeProviderConfig?.apiKey),
+        baseUrl: activeProviderConfig?.baseUrl ?? null,
+        provider: activeProvider,
+        providers: listModelProviders(cfg).map((name) => {
+          const provider = resolveModelProvider(name, cfg);
+          return {
+            name,
+            model: provider?.model ?? null,
+            models: provider?.models ?? [],
+            apiKeySet: Boolean(provider?.apiKey),
+            baseUrl: provider?.baseUrl ?? null,
+          };
+        }),
         lang: getLanguage(),
         preset: cfg.preset ?? "auto",
         reasoningEffort: cfg.reasoningEffort ?? "max",
@@ -84,6 +104,7 @@ export async function handleSettings(
         appliesAt: {
           apiKey: "next-session",
           baseUrl: "next-session",
+          provider: "live",
           preset: "next-session",
           reasoningEffort: "next-turn",
           search: "next-session",
@@ -105,6 +126,7 @@ export async function handleSettings(
     let langPending: LanguageCode | null = null;
     let presetPendingLive: string | null = null;
     let effortPendingLive: "high" | "max" | null = null;
+    let providerPendingLive: string | null = null;
 
     if (fields.lang !== undefined) {
       const raw = String(fields.lang);
@@ -123,15 +145,53 @@ export async function handleSettings(
       if (typeof fields.apiKey !== "string" || !isPlausibleKey(fields.apiKey)) {
         return { status: 400, body: { error: "apiKey must be 16+ chars with no whitespace" } };
       }
-      cfg.apiKey = fields.apiKey.trim();
+      const providerName = activeProviderName(cfg);
+      if (providerName === DEFAULT_PROVIDER) {
+        cfg.apiKey = fields.apiKey.trim();
+      } else {
+        cfg.providers ??= {};
+        cfg.providers[providerName] = {
+          ...(cfg.providers[providerName] ?? {}),
+          apiKey: fields.apiKey.trim(),
+        };
+      }
       changed.push("apiKey");
     }
     if (fields.baseUrl !== undefined) {
       if (typeof fields.baseUrl !== "string" || !fields.baseUrl.trim()) {
         return { status: 400, body: { error: "baseUrl must be a non-empty string" } };
       }
-      cfg.baseUrl = fields.baseUrl.trim();
+      const providerName = activeProviderName(cfg);
+      if (providerName === DEFAULT_PROVIDER) {
+        cfg.baseUrl = fields.baseUrl.trim();
+      } else {
+        cfg.providers ??= {};
+        cfg.providers[providerName] = {
+          ...(cfg.providers[providerName] ?? {}),
+          baseUrl: fields.baseUrl.trim(),
+        };
+      }
       changed.push("baseUrl");
+    }
+    if (fields.provider !== undefined) {
+      const provider =
+        typeof fields.provider === "string" ? resolveModelProvider(fields.provider, cfg) : null;
+      if (
+        typeof fields.provider !== "string" ||
+        !listModelProviders(cfg).includes(fields.provider) ||
+        !provider?.apiKey ||
+        (provider.name !== DEFAULT_PROVIDER && !provider.model)
+      ) {
+        return {
+          status: 400,
+          body: {
+            error: "provider must name a configured provider with an API key and model",
+          },
+        };
+      }
+      cfg.provider = fields.provider;
+      providerPendingLive = fields.provider;
+      changed.push("provider");
     }
     if (fields.preset !== undefined) {
       if (typeof fields.preset !== "string" || !VALID_PRESETS.has(fields.preset)) {
@@ -223,6 +283,12 @@ export async function handleSettings(
       if (presetPendingLive) ctx.applyPresetLive?.(presetPendingLive);
       if (effortPendingLive) ctx.applyEffortLive?.(effortPendingLive);
       if (modelPendingLive) ctx.applyModelLive?.(modelPendingLive);
+      if (providerPendingLive) {
+        const switched = ctx.switchProviderLive?.(providerPendingLive);
+        if (switched && !switched.ok) {
+          return { status: 400, body: { error: switched.info } };
+        }
+      }
       if (proNextPending !== null) ctx.setProNextLive?.(proNextPending);
       if (budgetPending !== undefined) ctx.setBudgetUsdLive?.(budgetPending);
       ctx.audit?.({ ts: Date.now(), action: "set-settings", payload: { fields: changed } });

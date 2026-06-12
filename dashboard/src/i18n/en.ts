@@ -105,6 +105,8 @@ export const en = {
     saved: "saved: {fields}",
     sectionApi: "DeepSeek API",
     apiKey: "API key",
+    provider: "model provider",
+    providerNote: "Named providers come from ~/.carboncode/config.json and switch live.",
     notSet: "(not set)",
     replace: "replace",
     pasteKey: "paste a fresh sk-… token",

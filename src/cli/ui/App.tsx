@@ -68,6 +68,13 @@ import {
   renameSession,
   sanitizeName,
 } from "../../memory/session.js";
+import {
+  DEFAULT_PROVIDER,
+  activeProviderName,
+  listModelProviders,
+  resolveModelProvider,
+  saveActiveProvider,
+} from "../../providers.js";
 import type { QQChannel } from "../../qq/channel.js";
 import { useQQChannel } from "../../qq/use-qq-channel.js";
 import {
@@ -944,6 +951,7 @@ function AppInner({
   const loopRef = useRef<CacheFirstLoop | null>(null);
   const runtimeConfigSource = useMemo(() => new RuntimeConnectionConfigSource(), []);
   const initialRuntimeConfigRef = useRef(runtimeConfigSource.read());
+  const appliedRuntimeConfigRef = useRef(initialRuntimeConfigRef.current);
   // hookList + currentRootDir intentionally NOT in deps —they seed
   // the loop on first construction (loopRef guards a single
   // instantiation), and later edits flow in through the mutable
@@ -958,6 +966,7 @@ function AppInner({
     const client = new DeepSeekClient({
       apiKey: initialRuntimeConfig?.apiKey,
       baseUrl: initialRuntimeConfig?.baseUrl ?? loadBaseUrl(),
+      provider: initialRuntimeConfig?.provider,
     });
     // Register run_skill HERE (not in code.tsx / chat.tsx) because
     // subagent-runAs skills need the client + parent registry to
@@ -1012,6 +1021,9 @@ function AppInner({
       reasoningEffort: loadReasoningEffort(),
       rebuildSystem,
     });
+    if (initialRuntimeConfig?.model) {
+      l.configure({ model: initialRuntimeConfig.model, autoEscalate: false });
+    }
     loopRef.current = l;
     return l;
   }, [model, system, rebuildSystem, budgetUsd, session, tools, codeMode]);
@@ -1277,35 +1289,113 @@ function AppInner({
   // so the refresh callbacks can be wired into handleSubmit's finally
   // (balance) and the slash context (/models, /update).
   const { balance, models, latestVersion, refreshBalance, refreshModels, refreshLatestVersion } =
-    useSessionInfo(loop);
+    useSessionInfo(loop, initialRuntimeConfigRef.current?.models);
 
   useEffect(() => {
-    let applied = initialRuntimeConfigRef.current ?? {
+    appliedRuntimeConfigRef.current ??= {
       apiKey: loop.client.apiKey,
       baseUrl: loop.client.baseUrl,
+      provider: loop.client.provider,
+      model: loop.model,
+      models: [],
     };
     const timer = setInterval(() => {
       const next = runtimeConfigSource.read();
-      if (!next || sameRuntimeConnectionConfig(applied, next)) return;
+      const applied = appliedRuntimeConfigRef.current;
+      if (!next || (applied && sameRuntimeConnectionConfig(applied, next))) return;
       if (busyRef.current || loop.inflight.size > 0) return;
       if (!next.apiKey) {
-        log.pushWarning("config reload skipped", "DeepSeek API key is empty.");
-        applied = next;
+        log.pushWarning("config reload skipped", `${next.provider} API key is empty.`);
+        appliedRuntimeConfigRef.current = next;
         return;
       }
       try {
-        loop.replaceClient(new DeepSeekClient({ apiKey: next.apiKey, baseUrl: next.baseUrl }));
-        applied = next;
+        loop.replaceClient(
+          new DeepSeekClient({
+            apiKey: next.apiKey,
+            baseUrl: next.baseUrl,
+            provider: next.provider,
+          }),
+        );
+        if (next.model && next.model !== loop.model) {
+          loop.configure({ model: next.model, autoEscalate: false });
+          agentStore.dispatch({ type: "session.model.change", model: next.model });
+          agentStore.dispatch({ type: "session.preset.change", preset: null });
+        }
+        appliedRuntimeConfigRef.current = next;
         refreshBalance();
-        refreshModels();
-        log.pushInfo("config: DeepSeek connection reloaded");
+        refreshModels(next.models);
+        log.pushInfo(`config: ${next.provider} connection reloaded`);
       } catch (err) {
         log.pushWarning("config reload failed", (err as Error).message);
       }
     }, 1000);
     timer.unref();
     return () => clearInterval(timer);
-  }, [log, loop, refreshBalance, refreshModels, runtimeConfigSource]);
+  }, [agentStore, log, loop, refreshBalance, refreshModels, runtimeConfigSource]);
+
+  const listConfiguredProviders = useCallback(() => {
+    const config = readConfig();
+    const active = activeProviderName(config);
+    return listModelProviders(config).map((name) => {
+      const provider = resolveModelProvider(name, config);
+      return {
+        name,
+        active: name === active,
+        ...(provider?.model ? { model: provider.model } : {}),
+      };
+    });
+  }, []);
+
+  const switchConfiguredProvider = useCallback(
+    (name: string): { ok: boolean; info: string } => {
+      const config = readConfig();
+      const provider = resolveModelProvider(name, config);
+      if (!provider) {
+        return {
+          ok: false,
+          info: `unknown provider "${name}" - configured: ${listModelProviders(config).join(", ")}`,
+        };
+      }
+      if (!provider.apiKey) {
+        return { ok: false, info: `provider "${name}" has no API key` };
+      }
+      if (provider.name !== DEFAULT_PROVIDER && !provider.model) {
+        return { ok: false, info: `provider "${name}" has no model` };
+      }
+      try {
+        saveActiveProvider(name);
+        loop.replaceClient(
+          new DeepSeekClient({
+            provider: provider.name,
+            apiKey: provider.apiKey,
+            baseUrl: provider.baseUrl,
+          }),
+        );
+        if (provider.model) {
+          loop.configure({ model: provider.model, autoEscalate: false });
+          agentStore.dispatch({ type: "session.model.change", model: provider.model });
+          agentStore.dispatch({ type: "session.preset.change", preset: null });
+        }
+        appliedRuntimeConfigRef.current = {
+          provider: provider.name,
+          apiKey: provider.apiKey,
+          baseUrl: provider.baseUrl,
+          model: provider.model,
+          models: provider.models,
+        };
+        refreshBalance();
+        refreshModels(provider.models);
+        return {
+          ok: true,
+          info: `provider -> ${provider.name}${provider.model ? ` / ${provider.model}` : ""}`,
+        };
+      } catch (err) {
+        return { ok: false, info: `provider switch failed: ${(err as Error).message}` };
+      }
+    },
+    [agentStore, loop, refreshBalance, refreshModels],
+  );
 
   // Keep the dashboard-server ref-mirrors in sync with their state.
   // These four are the load-bearing live reads for the attached
@@ -2213,6 +2303,7 @@ function AppInner({
             loop.configure({ model });
             agentStore.dispatch({ type: "session.model.change", model });
           },
+          switchProviderLive: switchConfiguredProvider,
           getModels: () => modelsRef.current,
           setProNextLive: (armed) => {
             if (armed) loop.armProForNextTurn();
@@ -2464,6 +2555,7 @@ function AppInner({
     dashboardPort,
     dashboardHost,
     dashboardToken,
+    switchConfiguredProvider,
   ]);
 
   const stopDashboard = useCallback(async (): Promise<void> => {
@@ -2964,6 +3056,8 @@ function AppInner({
           refreshLatestVersion,
           models,
           refreshModels,
+          listProviders: listConfiguredProviders,
+          switchProvider: switchConfiguredProvider,
           generateSessionTitle: generateCurrentSessionTitle,
         });
         if (
@@ -3541,6 +3635,8 @@ function AppInner({
       generateCurrentSessionTitle,
       switchWorkspaceRoot,
       addWorkspaceDir,
+      listConfiguredProviders,
+      switchConfiguredProvider,
     ],
   );
 

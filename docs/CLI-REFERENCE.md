@@ -235,6 +235,27 @@ is an npm option and will not invoke Carbon Code setup.
 Configuration is stored in `~/.carboncode/config.json`. `DEEPSEEK_API_KEY` can
 also be exported for a temporary override.
 
+Multiple OpenAI-compatible providers can be named in the same file. Legacy
+top-level `apiKey` / `baseUrl` remain the `deepseek` provider:
+
+```json
+{
+  "provider": "openrouter",
+  "providers": {
+    "openrouter": {
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKey": "sk-or-...",
+      "model": "anthropic/claude-sonnet-4",
+      "models": ["anthropic/claude-sonnet-4", "openai/gpt-4.1"]
+    }
+  }
+}
+```
+
+Use `/provider` to list configured providers, `/provider <name>` to switch
+without restarting, and `/model <id>` to switch models inside the active
+provider. The dashboard Settings panel exposes the same provider switch.
+
 Cost visibility:
 
 - The bottom status bar shows the latest turn cost as `turn`.

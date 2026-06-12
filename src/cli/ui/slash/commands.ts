@@ -91,8 +91,14 @@ export const SLASH_COMMANDS: readonly SlashCommandSpec[] = [
     cmd: "model",
     group: "setup",
     argsHint: "<id>",
-    summary: "switch DeepSeek model id. Bare opens picker.",
+    summary: "switch model id for the active provider. Bare opens picker.",
     argCompleter: "models",
+  },
+  {
+    cmd: "provider",
+    group: "setup",
+    argsHint: "[name]",
+    summary: "list or switch configured model providers without restarting",
   },
   {
     cmd: "language",

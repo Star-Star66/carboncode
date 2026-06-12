@@ -11,6 +11,7 @@ export type ForceSummaryReason = "aborted" | "context-guard" | "stuck";
 
 export interface ForceSummaryContext {
   client: DeepSeekClient;
+  model: string;
   signal: AbortSignal;
   buildMessages: () => ChatMessage[];
   appendAndPersist: (msg: ChatMessage) => void;
@@ -38,7 +39,7 @@ export async function* forceSummaryAfterIterLimit(
     });
     // Pin to flash + effort=high regardless of the main turn's model —
     // pro is 12× overkill for "paraphrase tool results into prose."
-    const summaryModel = "deepseek-v4-flash";
+    const summaryModel = ctx.model;
     const summaryEffort: "high" | "max" = "high";
     const resp = await ctx.client.chat({
       model: summaryModel,

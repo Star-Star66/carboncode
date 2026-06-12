@@ -22,6 +22,7 @@ vi.mock("../src/code/prompt.js", () => ({
 }));
 
 vi.mock("../src/config.js", () => ({
+  defaultConfigPath: vi.fn(() => "/tmp/config.json"),
   loadApiKey: vi.fn(() => undefined),
   loadPreset: vi.fn(() => "auto"),
   loadOutputStyle: vi.fn(() => "default"),

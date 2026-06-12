@@ -15,12 +15,15 @@ export interface UseSessionInfoResult {
   /** Strictly-newer version string (for the header badge) — else `null`. */
   updateAvailable: string | null;
   refreshBalance: () => void;
-  refreshModels: () => void;
+  refreshModels: (fallback?: string[]) => void;
   refreshLatestVersion: () => void;
 }
 
 /** All values best-effort — `null` means "not loaded or endpoint failed"; StatsPanel hides those cells. */
-export function useSessionInfo(loop: CacheFirstLoop): UseSessionInfoResult {
+export function useSessionInfo(
+  loop: CacheFirstLoop,
+  configuredModels: string[] = [],
+): UseSessionInfoResult {
   const [balance, setBalance] = useState<Balance | null>(null);
   const [models, setModels] = useState<string[] | null>(null);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
@@ -50,13 +53,14 @@ export function useSessionInfo(loop: CacheFirstLoop): UseSessionInfoResult {
     let cancelled = false;
     void (async () => {
       const list = await loop.client.listModels().catch(() => null);
-      if (cancelled || !list) return;
-      setModels(list.data.map((m) => m.id));
+      if (cancelled) return;
+      if (list) setModels(list.data.map((m) => m.id));
+      else if (configuredModels.length > 0) setModels(configuredModels);
     })();
     return () => {
       cancelled = true;
     };
-  }, [loop]);
+  }, [configuredModels, loop]);
 
   // Background registry check — 24h disk cache absorbs repeated
   // launches, timeout bounded so a flaky network doesn't delay the
@@ -88,12 +92,16 @@ export function useSessionInfo(loop: CacheFirstLoop): UseSessionInfoResult {
     })();
   }, [loop]);
 
-  const refreshModels = useCallback(() => {
-    void (async () => {
-      const list = await loop.client.listModels().catch(() => null);
-      if (list) setModels(list.data.map((m) => m.id));
-    })();
-  }, [loop]);
+  const refreshModels = useCallback(
+    (fallback: string[] = []) => {
+      void (async () => {
+        const list = await loop.client.listModels().catch(() => null);
+        if (list) setModels(list.data.map((m) => m.id));
+        else if (fallback.length > 0) setModels(fallback);
+      })();
+    },
+    [loop],
+  );
 
   const refreshLatestVersion = useCallback(() => {
     void (async () => {

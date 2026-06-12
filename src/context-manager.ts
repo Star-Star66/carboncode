@@ -187,7 +187,7 @@ export class ContextManager {
     if (headTokens < totalTokens * HISTORY_FOLD_MIN_SAVINGS_FRACTION) return noop;
 
     const { stubbedHead, pinnedBodies } = extractPinnedSkills(head);
-    const summary = await this.summarizeForFold(stubbedHead);
+    const summary = await this.summarizeForFold(stubbedHead, model);
     if (!summary.content) return noop;
 
     const memoTail =
@@ -290,8 +290,8 @@ export class ContextManager {
 
   private async summarizeForFold(
     messagesToSummarize: ChatMessage[],
+    summaryModel: string,
   ): Promise<{ content: string; reasoningContent: string }> {
-    const summaryModel = "deepseek-v4-flash";
     const systemPrompt =
       "You compress conversation history for a coding agent. Output one prose recap that preserves: the user's overall goal, decisions and conclusions reached, files inspected or modified, important tool results still relevant to ongoing work, and any open todos. Skip turn-by-turn play-by-play. No tool calls, no markdown headings, no SEARCH/REPLACE blocks — plain prose only.";
     const healed = healLoadedMessages(messagesToSummarize, DEFAULT_MAX_RESULT_CHARS).messages;

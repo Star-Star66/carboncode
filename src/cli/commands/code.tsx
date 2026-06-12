@@ -28,6 +28,7 @@ import { t } from "../../i18n/index.js";
 import { detectForeignAgentPlatform } from "../../memory/project.js";
 import { sanitizeName } from "../../memory/session.js";
 import { appendBuiltinMwhMcpSpec } from "../../mwh/mcp-spec.js";
+import { loadActiveModelProvider } from "../../providers.js";
 import { markPhase } from "../startup-profile.js";
 import { resolvePreset } from "../ui/presets.js";
 import { chatCommand } from "./chat.js";
@@ -75,14 +76,15 @@ export interface CodeOptions {
 
 export async function codeCommand(opts: CodeOptions = {}): Promise<void> {
   markPhase("code_command_enter");
-  const resolvedModel = opts.model ?? resolvePreset(loadPreset()).model;
+  const resolvedModel =
+    opts.model ?? loadActiveModelProvider().model ?? resolvePreset(loadPreset()).model;
   // Bridge .env + ~/.carboncode/config.json into process.env so buildCodeToolset's
   // eager DeepSeekClient constructions (subagent client; semantic embedder) can
   // pick up a key the user already configured via `carboncode setup`. chatCommand
   // does the same dance — code.tsx wraps chatCommand but must also seed env
   // before buildCodeToolset runs, which is BEFORE chatCommand.
   loadDotenv();
-  const cfgKey = loadApiKey();
+  const cfgKey = loadActiveModelProvider().apiKey ?? loadApiKey();
   if (cfgKey && !process.env.DEEPSEEK_API_KEY) {
     process.env.DEEPSEEK_API_KEY = cfgKey;
   }

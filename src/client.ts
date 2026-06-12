@@ -86,6 +86,7 @@ export interface ModelList {
 export interface DeepSeekClientOptions {
   apiKey?: string;
   baseUrl?: string;
+  provider?: string;
   timeoutMs?: number;
   fetch?: typeof fetch;
   rateLimit?: { rpm?: number };
@@ -94,6 +95,7 @@ export interface DeepSeekClientOptions {
 }
 
 export class DeepSeekClient {
+  readonly provider: string;
   readonly apiKey: string;
   readonly baseUrl: string;
   readonly timeoutMs: number;
@@ -103,10 +105,11 @@ export class DeepSeekClient {
   private nextChatRequestAt = 0;
 
   constructor(opts: DeepSeekClientOptions = {}) {
+    this.provider = opts.provider?.trim() || "DeepSeek";
     const apiKey = opts.apiKey ?? process.env.DEEPSEEK_API_KEY;
     if (!apiKey) {
       throw new Error(
-        "DEEPSEEK_API_KEY is not set. Put it in .env or pass apiKey to DeepSeekClient.",
+        `${this.provider} API key is not set. Configure it or pass apiKey to DeepSeekClient.`,
       );
     }
     this.apiKey = apiKey;
@@ -166,10 +169,11 @@ export class DeepSeekClient {
     // ignored — we don't strip them here because the server's explicit
     // "setting won't report an error" contract means leaving them in is
     // safe and keeps the request payload diffable against OpenAI tooling.
-    if (opts.thinking) {
+    const isDeepSeekProvider = this.provider.toLowerCase() === "deepseek";
+    if (opts.thinking && isDeepSeekProvider) {
       payload.extra_body = { thinking: { type: opts.thinking } };
     }
-    if (opts.reasoningEffort) {
+    if (opts.reasoningEffort && isDeepSeekProvider) {
       payload.reasoning_effort = opts.reasoningEffort;
     }
     return payload;
@@ -231,7 +235,7 @@ export class DeepSeekClient {
         { ...this.retry, signal },
       );
       if (!resp.ok) {
-        throw new Error(`DeepSeek ${resp.status}: ${await resp.text()}`);
+        throw new Error(`${this.provider} ${resp.status}: ${await resp.text()}`);
       }
       const data: any = await resp.json();
       const choice = data.choices?.[0]?.message ?? {};
@@ -279,7 +283,7 @@ export class DeepSeekClient {
     }
     if (!resp.ok || !resp.body) {
       clearTimeout(timer);
-      throw new Error(`DeepSeek ${resp.status}: ${await resp.text().catch(() => "")}`);
+      throw new Error(`${this.provider} ${resp.status}: ${await resp.text().catch(() => "")}`);
     }
 
     const queue: StreamChunk[] = [];

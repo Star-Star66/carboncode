@@ -104,3 +104,34 @@ describe("DeepSeekClient rateLimit", () => {
     }
   });
 });
+
+describe("DeepSeekClient provider compatibility", () => {
+  it("omits DeepSeek-only reasoning fields for another provider", async () => {
+    const spy = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    const client = new DeepSeekClient({
+      provider: "openrouter",
+      apiKey: "sk-test",
+      baseUrl: "https://openrouter.example/v1",
+      fetch: spy as unknown as typeof fetch,
+    });
+
+    await client.chat({
+      model: "deepseek/deepseek-chat",
+      messages: [],
+      reasoningEffort: "max",
+      thinking: "enabled",
+    });
+
+    expect(spy.mock.calls[0]?.[0]).toBe("https://openrouter.example/v1/chat/completions");
+    const body = JSON.parse(String((spy.mock.calls[0]?.[1] as RequestInit).body));
+    expect(body.model).toBe("deepseek/deepseek-chat");
+    expect(body.reasoning_effort).toBeUndefined();
+    expect(body.extra_body).toBeUndefined();
+  });
+});

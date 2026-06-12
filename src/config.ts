@@ -108,9 +108,20 @@ export interface RateLimitConfig {
   rpm?: number;
 }
 
+export interface ModelProviderConfig {
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  models?: string[];
+}
+
 export interface ReasonixConfig {
   apiKey?: string;
   baseUrl?: string;
+  /** Active chat provider. Missing keeps the legacy DeepSeek configuration. */
+  provider?: string;
+  /** Named OpenAI-compatible chat providers. */
+  providers?: Record<string, ModelProviderConfig>;
   lang?: LanguageCode;
   preset?: PresetName;
   editMode?: EditMode;

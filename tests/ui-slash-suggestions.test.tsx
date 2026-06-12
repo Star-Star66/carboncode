@@ -118,13 +118,14 @@ describe("SlashSuggestions", () => {
     const frame = lastFrame() ?? "";
     unmount();
 
-    expect(matches).toHaveLength(55);
+    expect(matches).toHaveLength(56);
     expect(names).toContain("add-dir");
     expect(names).toContain("vim");
     expect(names).toContain("agents");
     expect(names).toContain("config");
     expect(names).toContain("statusline");
     expect(names).toContain("pricing");
+    expect(names).toContain("provider");
     expect(names).toContain("review");
     expect(names).toContain("collab");
     expect(names).toContain("mwh");
@@ -135,7 +136,7 @@ describe("SlashSuggestions", () => {
     expect(names).toContain("language");
     expect(names).toContain("btw");
     expect(countAdvancedCommands(true)).toBe(11);
-    expect(frame).toContain("55 commands");
+    expect(frame).toContain("56 commands");
     expect(frame).toContain("+ 11 advanced");
   });
 

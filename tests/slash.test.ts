@@ -165,6 +165,29 @@ describe("handleSlash", () => {
     expect(r.openModelPicker).toBe(true);
   });
 
+  it("/provider lists configured providers", () => {
+    const r = handleSlash("provider", [], makeLoop(), {
+      listProviders: () => [
+        { name: "deepseek", active: true, model: "deepseek-v4-flash" },
+        { name: "openrouter", active: false, model: "openai/gpt-4.1" },
+      ],
+    });
+    expect(r.info).toContain("* deepseek / deepseek-v4-flash");
+    expect(r.info).toContain("openrouter / openai/gpt-4.1");
+  });
+
+  it("/provider switches through the live provider bridge", () => {
+    let selected = "";
+    const r = handleSlash("provider", ["openrouter"], makeLoop(), {
+      switchProvider: (name) => {
+        selected = name;
+        return { ok: true, info: `provider -> ${name}` };
+      },
+    });
+    expect(selected).toBe("openrouter");
+    expect(r.info).toContain("openrouter");
+  });
+
   it("/preset with no arg opens the unified picker", () => {
     const r = handleSlash("preset", [], makeLoop());
     expect(r.openModelPicker).toBe(true);
@@ -565,7 +588,7 @@ describe("handleSlash", () => {
     // Case-insensitive.
     expect(suggestSlashCommands("HE").map((s) => s.cmd)).toEqual(["help"]);
     // Empty prefix returns the full non-advanced release list, including code commands.
-    expect(suggestSlashCommands("", true)).toHaveLength(55);
+    expect(suggestSlashCommands("", true)).toHaveLength(56);
     expect(suggestSlashCommands("", true).map((s) => s.cmd)).toContain("add-dir");
     expect(suggestSlashCommands("", true).map((s) => s.cmd)).toContain("vim");
     expect(suggestSlashCommands("", true).map((s) => s.cmd)).toContain("agents");

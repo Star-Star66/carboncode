@@ -150,6 +150,10 @@ export interface SlashContext {
   /** `null` → in flight / failed; `[]` → API answered empty. `/model <id>` warn-only since list can lag. */
   models?: string[] | null;
   refreshModels?: () => void;
+  /** Named OpenAI-compatible chat providers configured for this session. */
+  listProviders?: () => Array<{ name: string; active: boolean; model?: string }>;
+  /** Persist and apply a provider switch without rebuilding the conversation. */
+  switchProvider?: (name: string) => { ok: boolean; info: string };
   /** Ask the current model to summarize the active session into a short title and rename it. */
   generateSessionTitle?: () => Promise<string>;
   armPro?: () => void;

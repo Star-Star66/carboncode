@@ -15,6 +15,7 @@ import {
   renameSession,
   resolveSession,
 } from "../../memory/session.js";
+import { loadActiveModelProvider } from "../../providers.js";
 import { QQChannel } from "../../qq/channel.js";
 import { ToolRegistry } from "../../tools.js";
 import { registerChoiceTool } from "../../tools/choice.js";
@@ -252,7 +253,7 @@ function Root({
 export async function chatCommand(opts: ChatOptions): Promise<void> {
   markPhase("chat_command_enter");
   loadDotenv();
-  const initialKey = loadApiKey();
+  const initialKey = loadActiveModelProvider().apiKey ?? loadApiKey();
   markPhase("config_loaded");
 
   const requestedSpecs = opts.mcp ?? [];
